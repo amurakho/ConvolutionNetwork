@@ -27,7 +27,7 @@ def share_image(train_images, test_images):
     train_images = train_images / 255
     test_images = test_images / 255
 
-    return(train_images, test_images)
+    return train_images, test_images
 
 
 class Conv():
@@ -40,9 +40,9 @@ class Conv():
     """
 
     def __init__(self):
-        self.layers = []
+        self.conv_layers = {}
+        self.dense_layers = {}
         self.pool_size = None
-        pass
 
     def predict(self, file_name=None):
         """
@@ -54,21 +54,17 @@ class Conv():
         """
         pass
 
-    def Layer2D(self, data, kernel, kernel_size, layer_id, strides=(1, 1), border_mode='valid'):
+    def CreateLayer2D(self, data, kernel, kernel_size, layers_num=1):
         """
         Create convolution layer
         :param data:
             image 28x28
+        :param kernel:
+            number of kernels
         :param kernel_size:
             size of filter
-        :param strides:
-            filter "step"
-        :param border_mode:
-            mode which says how filter will work with map
-            if "valid":
-                take map and dont add some fields to it
-            if "full":
-                add to map some fields(with 0) for filter
+        :param layers_num:
+            layers number
 
         layer structure:
             layer(list of tuples)[
@@ -77,30 +73,34 @@ class Conv():
         :return:
             new convolution map
         """
-        # Создать слой
-        # если нет айди то создать
-        # если есть изменить значение
-        # 1) фильтра
-        # 2) новое поле
-        # 3) биас
 
-        if layer_id in self.layers:
-            pass
-        else:
-            # edit current layer
-            # self.layers[layer_od]
-            pass
-        # self.layers.append(np.random.rand(kernel, kernel_size))
-        # bias =
-        # Create empty map
-        if border_mode == 'valid':
-            pass
-        elif border_mode == 'full':
-            pass
-        else:
-            pass
+        # dimension of new conv map
+        conv_dim = np.shape(data)[1] - kernel_size[0] + 1
+        # create layer
+        for layer_id in range(layers_num):
+            self.conv_layers[layer_id] = np.array([
+                # bias
+                np.random.rand(),
+                # new random kernel
+                np.random.rand(kernel, kernel_size[0], kernel_size[1]),
+                # new empty map for each kernel
+                np.zeros([kernel, conv_dim, conv_dim])
+            ])
 
-        # Проходить по всем елементам всей карты и собирать сумму в новую карту
+    def covolution(self, data, layer):
+        for image, i in enumerate(data):
+            for feature in layer[1]:
+                # преобразование Фурье?
+                print(feature)
+                break
+            break
+
+    def CreateDense(self):
+        pass
+
+    def fit(self, data):
+        self.CreateLayer2D(data, 5, [5, 5])
+        self.covolution(data, self.conv_layers[0])
         pass
 
     def MaxPooling2D(self):
@@ -126,7 +126,10 @@ if __name__ == '__main__':
 
     train_images, test_images = share_image(train_images, test_images)
 
+    model = Conv()
 
+    model.fit(train_images)
+    # model.CreateLayer2D(train_images, 10, [5,5], 1)
     # plt.imshow(test, cmap='Greys')
     #
     # plt.show()
