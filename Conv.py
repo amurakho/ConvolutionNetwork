@@ -40,6 +40,8 @@ class Conv():
     """
 
     def __init__(self):
+        self.layers = []
+        self.pool_size = None
         pass
 
     def predict(self, file_name=None):
@@ -52,7 +54,7 @@ class Conv():
         """
         pass
 
-    def Layer2D(self, data, kernel_size, strides=(1, 1), border_mode='valid'):
+    def Layer2D(self, data, kernel, kernel_size, layer_id, strides=(1, 1), border_mode='valid'):
         """
         Create convolution layer
         :param data:
@@ -67,9 +69,30 @@ class Conv():
                 take map and dont add some fields to it
             if "full":
                 add to map some fields(with 0) for filter
+
+        layer structure:
+            layer(list of tuples)[
+                    {number: [bias, [filters], [new map]]},
+                ]
         :return:
             new convolution map
         """
+        # Создать слой
+        # если нет айди то создать
+        # если есть изменить значение
+        # 1) фильтра
+        # 2) новое поле
+        # 3) биас
+
+        if layer_id in self.layers:
+            pass
+        else:
+            # edit current layer
+            # self.layers[layer_od]
+            pass
+        # self.layers.append(np.random.rand(kernel, kernel_size))
+        # bias =
+        # Create empty map
         if border_mode == 'valid':
             pass
         elif border_mode == 'full':
@@ -77,6 +100,7 @@ class Conv():
         else:
             pass
 
+        # Проходить по всем елементам всей карты и собирать сумму в новую карту
         pass
 
     def MaxPooling2D(self):
