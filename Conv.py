@@ -109,14 +109,34 @@ class Conv():
             # i dont use relu becuse i create only one conv layer
             # and it will be without negative values
             # self.relu()
-            self.maxPooling2D([2,2 ], self.conv_layers[0][-1])
+            max_pool_map = self.maxPooling2D([2, 2], self.conv_layers[0][-1])
+            # DROPOUT
             break
         pass
 
     def maxPooling2D(self, pool_size, map):
-        new_shape = int(np.shape(map)[0] / (pool_size[0] * pool_size[1]))
+        # find dimension for new map
+        # map dimension / pool size
+        new_shape = int(np.shape(map)[0] / pool_size[0])
+        # create empty map
         pool_map = np.zeros([new_shape, new_shape])
-        for
+
+        # each row in new map
+        for rows_counter in range(new_shape):
+            # take start and end from old map
+            start_row = rows_counter * pool_size[0]
+            end_row = start_row + pool_size[0]
+
+            # each colums
+            for cols_counter in range(new_shape):
+                start_col = cols_counter * pool_size[1]
+                end_col = start_col + pool_size[1]
+
+                # take patch from old map
+                patch = map[start_row:end_row, start_col:end_col]
+                # take maximum
+                pool_map[rows_counter][cols_counter] = np.max(patch)
+        return pool_map
 
     def flatten(self):
         pass
