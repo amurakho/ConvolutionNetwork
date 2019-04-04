@@ -12,6 +12,7 @@ https://towardsdatascience.com/image-classification-in-10-minutes-with-mnist-dat
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.ndimage
 
 def share_image(train_images, test_images):
     """
@@ -54,7 +55,7 @@ class Conv():
         """
         pass
 
-    def CreateLayer2D(self, data, kernel, kernel_size, layers_num=1):
+    def createLayer2D(self, data, kernel, kernel_size, layers_num=1):
         """
         Create convolution layer
         :param data:
@@ -75,41 +76,52 @@ class Conv():
         """
 
         # dimension of new conv map
-        conv_dim = np.shape(data)[1] - kernel_size[0] + 1
+        # conv_dim = np.shape(data)[1] - kernel_size[0] + 1
+        conv_dim = np.shape(data)[1]
         # create layer
         for layer_id in range(layers_num):
             self.conv_layers[layer_id] = np.array([
                 # bias
+                # np.random.uniform(-1, 1),
                 np.random.rand(),
                 # new random kernel
+                # np.random.uniform(-1, 1, [kernel, kernel_size[0], kernel_size[1]]),
                 np.random.rand(kernel, kernel_size[0], kernel_size[1]),
                 # new empty map for each kernel
-                np.zeros([kernel, conv_dim, conv_dim])
+                np.zeros([conv_dim, conv_dim])
             ])
 
-    def covolution(self, data, layer):
-        for image, i in enumerate(data):
-            for feature in layer[1]:
-                # преобразование Фурье?
-                print(feature)
-                break
+    def covolution(self, image, layer):
+        # for each filter in layer
+        for feature in layer[1]:
+            layer[-1] += scipy.ndimage.convolve(image, feature)
+
+    def createDense(self):
+        pass
+
+    def fit(self, data, kernel, kernel_size):
+        # create few conv layers
+        # create few full network layers
+        self.createLayer2D(data, kernel, kernel_size)
+        # start trainig
+        for image in data:
+            self.covolution(image, self.conv_layers[0])
+            # i dont use relu becuse i create only one conv layer
+            # and it will be without negative values
+            # self.relu()
+            self.maxPooling2D([2,2 ], self.conv_layers[0][-1])
             break
-
-    def CreateDense(self):
         pass
 
-    def fit(self, data):
-        self.CreateLayer2D(data, 5, [5, 5])
-        self.covolution(data, self.conv_layers[0])
+    def maxPooling2D(self, pool_size, map):
+        new_shape = int(np.shape(map)[0] / (pool_size[0] * pool_size[1]))
+        pool_map = np.zeros([new_shape, new_shape])
+        for
+
+    def flatten(self):
         pass
 
-    def MaxPooling2D(self):
-        pass
-
-    def Flatten(self):
-        pass
-
-    def Dropout(self):
+    def dropout(self):
         pass
 
     def Desnse(self):
@@ -128,7 +140,7 @@ if __name__ == '__main__':
 
     model = Conv()
 
-    model.fit(train_images)
+    model.fit(train_images, 5, [5, 5])
     # model.CreateLayer2D(train_images, 10, [5,5], 1)
     # plt.imshow(test, cmap='Greys')
     #
