@@ -125,7 +125,7 @@ class Conv():
             self.dense_layers[layer_id].append([weight, bias])
 
     def fit(self, data, kernel, kernel_size):
-        # возможно стоит попробовать инициализировать веса от -1 до 1
+        # возможно стоит попробовать инициализировать веса от -0.5 до 0.5
         # в таком случае подключить Relu
 
 
