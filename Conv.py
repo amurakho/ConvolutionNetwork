@@ -77,7 +77,7 @@ class Conv():
 
         # dimension of new conv map
         # conv_dim = np.shape(data)[1] - kernel_size[0] + 1
-        conv_dim = np.shape(data)[1]
+        # conv_dim = np.shape(data)[1]
         # create layer
         for layer_id in range(layers_num):
             self.conv_layers[layer_id] = np.array([
@@ -88,33 +88,56 @@ class Conv():
                 # np.random.uniform(-1, 1, [kernel, kernel_size[0], kernel_size[1]]),
                 np.random.rand(kernel, kernel_size[0], kernel_size[1]),
                 # new empty map for each kernel
-                np.zeros([conv_dim, conv_dim])
+                # np.zeros([conv_dim, conv_dim])
             ])
 
     def covolution(self, image, layer):
+        """
+        Take a map and make convolution for it
+        :param image:
+            map
+        :param layer:
+            the layer from wich will take the filter
+        :return:
+            new convolution map
+        """
         # for each filter in layer
+        map_dim = np.shape(image)[0]
+        map = np.zeros([map_dim, map_dim])
         for feature in layer[1]:
-            layer[-1] += scipy.ndimage.convolve(image, feature)
+            map += scipy.ndimage.convolve(image, feature)
+        return map
 
     def createDense(self):
         pass
 
     def fit(self, data, kernel, kernel_size):
-        # create few conv layers
+        # create two conv layers
         # create few full network layers
-        self.createLayer2D(data, kernel, kernel_size)
+        self.createLayer2D(data, kernel, kernel_size, layers_num=2)
         # start trainig
         for image in data:
-            self.covolution(image, self.conv_layers[0])
-            # i dont use relu becuse i create only one conv layer
-            # and it will be without negative values
-            # self.relu()
-            max_pool_map = self.maxPooling2D([2, 2], self.conv_layers[0][-1])
-            # DROPOUT
+            # i dont use relu
+            # it will be without negative values
+            x = self.covolution(image, self.conv_layers[0])
+            x = self.maxPooling2D([2, 2], x)
+            x = self.covolution(x, self.conv_layers[1])
+            x = self.maxPooling2D([2, 2], x)
+            x = self.flatten(x)
+            x = self.dropout(x, 0.2)
             break
         pass
 
     def maxPooling2D(self, pool_size, map):
+        """
+        Take the map and make a pooling with pool filter
+        :param pool_size:
+            Pool size
+        :param map:
+            map
+        :return:
+            new map after pooling
+        """
         # find dimension for new map
         # map dimension / pool size
         new_shape = int(np.shape(map)[0] / pool_size[0])
@@ -136,15 +159,34 @@ class Conv():
                 patch = map[start_row:end_row, start_col:end_col]
                 # take maximum
                 pool_map[rows_counter][cols_counter] = np.max(patch)
+
         return pool_map
 
-    def flatten(self):
+    def flatten(self, map):
+        """
+        Take the map matrix and create 2D array
+        :return:
+            2D array
+        """
+        flatten_map = np.ndarray.flatten(map)
+        return flatten_map
+
+    def dropout(self, map, propability):
+        """
+        Some random neurons(values in matrix) turn off(make it to zero)
+        :return:
+            new dropout map
+        """
+        dimension = np.shape(map)[0]
+        prob = 1. - propability
+        binomial_layer = np.random.binomial(1, prob, dimension)
+        map = map * binomial_layer
+        return map
+
+    def dense(self):
         pass
 
-    def dropout(self):
-        pass
-
-    def Desnse(self):
+    def softmax(self):
         pass
 
 
@@ -165,3 +207,4 @@ if __name__ == '__main__':
     # plt.imshow(test, cmap='Greys')
     #
     # plt.show()
+
