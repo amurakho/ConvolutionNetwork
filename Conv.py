@@ -82,11 +82,9 @@ class Conv():
         for layer_id in range(layers_num):
             self.conv_layers[layer_id] = np.array([
                 # bias
-                # np.random.uniform(-1, 1),
-                np.random.rand(),
+                np.random.uniform(-0.5, 0.5),
                 # new random kernel
-                # np.random.uniform(-1, 1, [kernel, kernel_size[0], kernel_size[1]]),
-                np.random.rand(kernel, kernel_size[0], kernel_size[1]),
+                np.random.uniform(-0.5, 0.5, [kernel, kernel_size[0], kernel_size[1]]),
                 # new empty map for each kernel
                 # np.zeros([conv_dim, conv_dim])
             ])
@@ -108,49 +106,56 @@ class Conv():
             map += scipy.ndimage.convolve(image, feature)
         return map
 
-    def createDense(self, neuron_num, layer_id):
+    def createDense(self, output_num, layer_id, input_num):
         """
-        Create dense layer and init  weights and bias
+        Init the weights and bias for each neuron in dense layer
         :param neuron_num:
             number of neurons for each layer
         :param layer_id:
             id of new layer
         """
-        self.dense_layers[layer_id] = []
-        for neuron in range(neuron_num):
-            # weight for each neuron for each input
-            weight = np.random.rand(neuron_num)
-            # bias for each neuron
-            bias = np.random.rand()
-            self.dense_layers[layer_id].append([weight, bias])
+        # self.dense_layers[layer_id] = []
+        # for neuron in range(output_num):
+        #     # weight for each neuron for each input
+        #     weight = np.random.rand(input_num)
+        #     # bias for each neuron
+        #     bias = np.random.rand()
+        #     self.dense_layers[layer_id].append([weight, bias])
+
+        self.dense_layers[layer_id] = {}
+        self.dense_layers[layer_id]['weights'] = np.random.uniform(-0.5, 0.5, [output_num, input_num])
+        self.dense_layers[layer_id]['bias'] = np.random.uniform(-0.5, 0.5, output_num)
+
+        # for neuron in range(output_num):
+        #     # weight for each neuron for each input
+        #     self.dense_layers[layer_id]['weight'] = np.random.rand(input_num)
+        #     # bias for each neuron
+        #     self.dense_layers[layer_id]['bias'] = np.random.rand()
+        #     # self.dense_layers[layer_id].append([weight, bias])
 
     def fit(self, data, kernel, kernel_size):
-        # возможно стоит попробовать инициализировать веса от -0.5 до 0.5
-        # в таком случае подключить Relu
-
-
-
         # create two conv layers
         # create few full network layers
         self.createLayer2D(data, kernel, kernel_size, layers_num=2)
         # create dense layer which have 49 neurons(for each input after conv)
-        self.createDense(neuron_num=49, layer_id=0)
+        self.createDense(layer_id=0, output_num=10, input_num=49)
         # create dense layer which will work with softmax act. func
-        self.createDense(neuron_num=10, layer_id=1)
+        # self.createDense(layer_id=1, output_num=10, input_num=49)
         # start trainig
+        ress = []
         for image in data:
-            # i dont use relu
-            # it will be without negative values
             x = self.covolution(image, self.conv_layers[0])
+            x = self.relu(x)
             x = self.maxPooling2D([2, 2], x)
             x = self.covolution(x, self.conv_layers[1])
+            x = self.relu(x)
             x = self.maxPooling2D([2, 2], x)
             x = self.flatten(x)
             x = self.dropout(x, 0.3)
             x = self.dense(x, self.dense_layers[0])
+            x = self.relu(x)
             x = self.dropout(x, 0.2)
-            x = self.softmax(x, self.dense_layers[1])
-            print(np.shape(x))
+            res = self.softmax(x)
             break
         pass
 
@@ -219,17 +224,34 @@ class Conv():
         :return:
             list of weighted sum from each neuron
         """
-        results = np.zeros(np.shape(layer)[0])
-        # for each neuron
-        for i, neuron in enumerate(layer):
-            weights = neuron[0]
-            bias = neuron[1]
-            results[i] = np.dot(map, weights) + bias
+        results = np.dot(layer['weights'], map) + layer['bias']
         return results
 
+    def relu(self, map):
+        """
+        Relu function
+        make all values which value is less then 0. to zero
+        :param map:
+            map after conv
+        :return:
+            new relu map
+        """
+        z = np.zeros_like(map)
+        return np.where(map > z, map, z)
 
-    def softmax(self, map, layer):
-        pass
+    def softmax(self, map):
+        """
+        Softmax activation function
+        ei^z/sum(ei)
+        :param map:
+            map after dense
+        :return:
+            index of max
+        """
+        numerator = np.exp(map)
+        denominator = np.sum(np.exp(map))
+        res = numerator / denominator
+        return np.argmax(res)
 
 
 if __name__ == '__main__':
