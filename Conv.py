@@ -55,11 +55,9 @@ class Conv():
         """
         pass
 
-    def createLayer2D(self, data, kernel, kernel_size, layers_num=1):
+    def createLayer2D(self, kernel, kernel_size, layers_num=1):
         """
         Create convolution layer
-        :param data:
-            image 28x28
         :param kernel:
             number of kernels
         :param kernel_size:
@@ -89,21 +87,26 @@ class Conv():
                 # np.zeros([conv_dim, conv_dim])
             ])
 
-    def covolution(self, image, layer):
+    def covolution(self, images, layer):
         """
-        Take a map and make convolution for it
-        :param image:
+        Take a map of images and make convolution for it
+        :param images:
             map
         :param layer:
             the layer from wich will take the filter
         :return:
             new convolution map
         """
-        # for each filter in layer
-        map_dim = np.shape(image)[0]
-        map = np.zeros([map_dim, map_dim])
-        for feature in layer[1]:
-            map += scipy.ndimage.convolve(image, feature)
+        nb_images = np.shape(images)[0]
+        map_dim = np.shape(images)[1]
+
+        map = np.zeros([nb_images, map_dim, map_dim])
+
+        # for each image
+        for image_idx in range(nb_images):
+            # for each filter in layer
+            for feature in layer[1]:
+                map[image_idx] += scipy.ndimage.convolve(images[image_idx], feature)
         return map
 
     def createDense(self, output_num, layer_id, input_num):
@@ -133,18 +136,18 @@ class Conv():
         #     self.dense_layers[layer_id]['bias'] = np.random.rand()
         #     # self.dense_layers[layer_id].append([weight, bias])
 
-    def fit(self, data, kernel, kernel_size):
+    def fit(self, data, kernel, kernel_size, epochs):
         # create two conv layers
         # create few full network layers
-        self.createLayer2D(data, kernel, kernel_size, layers_num=2)
+        self.createLayer2D(kernel, kernel_size, layers_num=2)
         # create dense layer which have 49 neurons(for each input after conv)
         self.createDense(layer_id=0, output_num=10, input_num=49)
         # create dense layer which will work with softmax act. func
         # self.createDense(layer_id=1, output_num=10, input_num=49)
         # start trainig
         ress = []
-        for image in data:
-            x = self.covolution(image, self.conv_layers[0])
+        for epoch in range(epochs):
+            x = self.covolution(data, self.conv_layers[0])
             x = self.relu(x)
             x = self.maxPooling2D([2, 2], x)
             x = self.covolution(x, self.conv_layers[1])
@@ -152,10 +155,17 @@ class Conv():
             x = self.maxPooling2D([2, 2], x)
             x = self.flatten(x)
             x = self.dropout(x, 0.3)
+            # print(np.shape(self.dense_layers[0]['weights']))
+            # print(np.shape(x))
+            print(x[0])
+            print('*************')
+            print(x[1])
+            exit(1)
             x = self.dense(x, self.dense_layers[0])
             x = self.relu(x)
             x = self.dropout(x, 0.2)
             res = self.softmax(x)
+            self.adam(res)
             break
         pass
 
@@ -171,25 +181,28 @@ class Conv():
         """
         # find dimension for new map
         # map dimension / pool size
-        new_shape = int(np.shape(map)[0] / pool_size[0])
+        new_shape = int(np.shape(map)[1] / pool_size[0])
+        image_nb = np.shape(map)[0]
         # create empty map
-        pool_map = np.zeros([new_shape, new_shape])
+        pool_map = np.zeros([image_nb, new_shape, new_shape])
 
-        # each row in new map
-        for rows_counter in range(new_shape):
-            # take start and end from old map
-            start_row = rows_counter * pool_size[0]
-            end_row = start_row + pool_size[0]
+        # for each image
+        for image_idx in range(image_nb):
+            # each row in new map
+            for rows_counter in range(new_shape):
+                # take start and end from old map
+                start_row = rows_counter * pool_size[0]
+                end_row = start_row + pool_size[0]
 
-            # each colums
-            for cols_counter in range(new_shape):
-                start_col = cols_counter * pool_size[1]
-                end_col = start_col + pool_size[1]
+                # each colums
+                for cols_counter in range(new_shape):
+                    start_col = cols_counter * pool_size[1]
+                    end_col = start_col + pool_size[1]
 
-                # take patch from old map
-                patch = map[start_row:end_row, start_col:end_col]
-                # take maximum
-                pool_map[rows_counter][cols_counter] = np.max(patch)
+                    # take patch from old map
+                    patch = map[image_idx][start_row:end_row, start_col:end_col]
+                    # take maximum
+                    pool_map[image_idx][rows_counter][cols_counter] = np.max(patch)
 
         return pool_map
 
@@ -199,7 +212,10 @@ class Conv():
         :return:
             2D array
         """
-        flatten_map = np.ndarray.flatten(map)
+        image_nb = np.shape(map)[0]
+        flatten_map = np.zeros((image_nb, np.prod(np.shape(map)[1:])))
+        for image_idx in range(image_nb):
+            flatten_map[image_idx, :] = np.ndarray.flatten(map[image_idx])
         return flatten_map
 
     def dropout(self, map, propability):
@@ -208,7 +224,7 @@ class Conv():
         :return:
             new dropout map
         """
-        dimension = np.shape(map)[0]
+        dimension = np.shape(map)
         prob = 1. - propability
         binomial_layer = np.random.binomial(1, prob, dimension)
         map = map * binomial_layer
@@ -246,13 +262,33 @@ class Conv():
         :param map:
             map after dense
         :return:
-            index of max
+            probability to the class
         """
         numerator = np.exp(map)
         denominator = np.sum(np.exp(map))
         res = numerator / denominator
-        return np.argmax(res)
+        return res
 
+    def classification(self, softmax_prob):
+        return np.argmax(softmax_prob)
+
+    def cross_entropy(self, softmax_prob, true_label):
+        predicted = softmax_prob[true_label]
+        log_preds = np.log(predicted)
+        loss = -1.0 * np.sum()
+
+    def adam(self, result):
+        """
+        Create the ADaM optimizer
+        The ADaM is RMSprop + momentum
+        :param map:
+        :return:
+        """
+
+        print(result)
+        # print(self.dense_layers[0]['bias'])
+
+        pass
 
 if __name__ == '__main__':
 
@@ -266,7 +302,10 @@ if __name__ == '__main__':
 
     model = Conv()
 
-    model.fit(train_images, 5, [5, 5])
+    # for test
+    train_images = train_images[:100]
+
+    model.fit(train_images, 5, [5, 5], 1)
     # model.CreateLayer2D(train_images, 10, [5,5], 1)
     # plt.imshow(test, cmap='Greys')
     #
