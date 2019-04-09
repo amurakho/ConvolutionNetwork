@@ -43,6 +43,8 @@ class Conv():
     def __init__(self):
         self.conv_layers = {}
         self.dense_layers = {}
+        # coefitients for ADAM
+        self.v = {}
         self.pool_size = None
 
     def predict(self, file_name=None):
@@ -55,37 +57,80 @@ class Conv():
         """
         pass
 
-    def createLayer2D(self, kernel, kernel_size, layers_num=1):
+    def createLayer2D(self, kernel, kernel_size, layer_id):
         """
         Create convolution layer
         :param kernel:
             number of kernels
         :param kernel_size:
             size of filter
-        :param layers_num:
-            layers number
+        :param layer_id:
+            layers id
 
         layer structure:
             layer(list of tuples)[
-                    {number: [bias, [filters], [new map]]},
+                    {number: [[filters], [new map]]},
                 ]
         :return:
             new convolution map
         """
 
-        # dimension of new conv map
-        # conv_dim = np.shape(data)[1] - kernel_size[0] + 1
-        # conv_dim = np.shape(data)[1]
         # create layer
-        for layer_id in range(layers_num):
-            self.conv_layers[layer_id] = np.array([
-                # bias
-                np.random.uniform(-0.5, 0.5),
-                # new random kernel
-                np.random.uniform(-0.5, 0.5, [kernel, kernel_size[0], kernel_size[1]]),
-                # new empty map for each kernel
-                # np.zeros([conv_dim, conv_dim])
-            ])
+        self.conv_layers[layer_id] = np.array([
+            # new random kernel
+            np.random.uniform(-0.5, 0.5, [kernel, kernel_size[0], kernel_size[1]]),
+            # for ADAM coefitients
+            np.zeros([kernel, kernel_size[0], kernel_size[1]], dtype='float32')
+        ])
+
+    def createDense(self, output_num, layer_id, input_num):
+        """
+        Init the weights and bias for each neuron in dense layer
+        :param neuron_num:
+            number of neurons for each layer
+        :param layer_id:
+            id of new layer
+        """
+        self.dense_layers[layer_id] = {}
+        # init weights
+        self.dense_layers[layer_id]['weights'] = np.random.uniform(-0.5, 0.5, [output_num, input_num])
+        # init bias
+        self.dense_layers[layer_id]['bias'] = np.random.uniform(-0.5, 0.5, output_num)
+        # init adam coefitients
+        self.dense_layers[layer_id]['adam'] = np.zeros([output_num, input_num], dtype='float32')
+
+    def fit(self,
+            data,
+            labels,
+            kernel,
+            kernel_size,
+            epochs,
+            learning_rate=0.1):
+        # create two conv layers
+        self.createLayer2D(kernel, kernel_size, layer_id=0)
+        self.createLayer2D(kernel, kernel_size, layer_id=1)
+        # create fully connected layer which have 49 neurons(for each input after conv)
+        self.createDense(layer_id=0, output_num=10, input_num=49)
+        ress = []
+        # start trainig
+        for epoch in range(epochs):
+            x = self.covolution(data, self.conv_layers[0])
+            x = self.relu(x)
+            x = self.maxPooling2D([2, 2], x)
+            x = self.covolution(x, self.conv_layers[1])
+            x = self.relu(x)
+            x = self.maxPooling2D([2, 2], x)
+            x = self.flatten(x)
+            x = self.dropout(x, 0.3)
+            x = self.dense(x, self.dense_layers[0])
+            x = self.relu(x)
+            x = self.dropout(x, 0.2)
+            res = self.softmax(x)
+            loss = self.cross_entropy(res, labels)
+            print(loss)
+            # self.adam(loss, epoch, learning_rate)
+            break
+        pass
 
     def covolution(self, images, layer):
         """
@@ -105,69 +150,9 @@ class Conv():
         # for each image
         for image_idx in range(nb_images):
             # for each filter in layer
-            for feature in layer[1]:
+            for feature in layer[0]:
                 map[image_idx] += scipy.ndimage.convolve(images[image_idx], feature)
         return map
-
-    def createDense(self, output_num, layer_id, input_num):
-        """
-        Init the weights and bias for each neuron in dense layer
-        :param neuron_num:
-            number of neurons for each layer
-        :param layer_id:
-            id of new layer
-        """
-        # self.dense_layers[layer_id] = []
-        # for neuron in range(output_num):
-        #     # weight for each neuron for each input
-        #     weight = np.random.rand(input_num)
-        #     # bias for each neuron
-        #     bias = np.random.rand()
-        #     self.dense_layers[layer_id].append([weight, bias])
-
-        self.dense_layers[layer_id] = {}
-        self.dense_layers[layer_id]['weights'] = np.random.uniform(-0.5, 0.5, [output_num, input_num])
-        self.dense_layers[layer_id]['bias'] = np.random.uniform(-0.5, 0.5, output_num)
-
-        # for neuron in range(output_num):
-        #     # weight for each neuron for each input
-        #     self.dense_layers[layer_id]['weight'] = np.random.rand(input_num)
-        #     # bias for each neuron
-        #     self.dense_layers[layer_id]['bias'] = np.random.rand()
-        #     # self.dense_layers[layer_id].append([weight, bias])
-
-    def fit(self, data, kernel, kernel_size, epochs):
-        # create two conv layers
-        # create few full network layers
-        self.createLayer2D(kernel, kernel_size, layers_num=2)
-        # create dense layer which have 49 neurons(for each input after conv)
-        self.createDense(layer_id=0, output_num=10, input_num=49)
-        # create dense layer which will work with softmax act. func
-        # self.createDense(layer_id=1, output_num=10, input_num=49)
-        # start trainig
-        ress = []
-        for epoch in range(epochs):
-            x = self.covolution(data, self.conv_layers[0])
-            x = self.relu(x)
-            x = self.maxPooling2D([2, 2], x)
-            x = self.covolution(x, self.conv_layers[1])
-            x = self.relu(x)
-            x = self.maxPooling2D([2, 2], x)
-            x = self.flatten(x)
-            x = self.dropout(x, 0.3)
-            # print(np.shape(self.dense_layers[0]['weights']))
-            # print(np.shape(x))
-            print(x[0])
-            print('*************')
-            print(x[1])
-            exit(1)
-            x = self.dense(x, self.dense_layers[0])
-            x = self.relu(x)
-            x = self.dropout(x, 0.2)
-            res = self.softmax(x)
-            self.adam(res)
-            break
-        pass
 
     def maxPooling2D(self, pool_size, map):
         """
@@ -232,7 +217,7 @@ class Conv():
 
     def dense(self, map, layer):
         """
-        Make weighted sum
+        Make weighted sum for each image
         :param map:
             flatten list
         :param layer:
@@ -240,7 +225,11 @@ class Conv():
         :return:
             list of weighted sum from each neuron
         """
-        results = np.dot(layer['weights'], map) + layer['bias']
+        image_nb = np.shape(map)[0]
+        res_dim = np.shape(layer['weights'])[0]
+        results = np.zeros([image_nb, res_dim])
+        for image_idx in range(image_nb):
+            results[image_idx] += np.dot(layer['weights'], map[image_idx]) + layer['bias']
         return results
 
     def relu(self, map):
@@ -264,48 +253,73 @@ class Conv():
         :return:
             probability to the class
         """
-        numerator = np.exp(map)
-        denominator = np.sum(np.exp(map))
-        res = numerator / denominator
+        dim = np.shape(map)
+        res = np.zeros(dim)
+        for idx in range(dim[0]):
+            numerator = np.exp(map[idx])
+            denominator = np.sum(np.exp(map[idx]))
+            res[idx] += numerator / denominator
         return res
 
     def classification(self, softmax_prob):
         return np.argmax(softmax_prob)
 
     def cross_entropy(self, softmax_prob, true_label):
-        predicted = softmax_prob[true_label]
-        log_preds = np.log(predicted)
-        loss = -1.0 * np.sum()
+        image_nb = np.shape(softmax_prob)[0]
+        loss = np.zeros(image_nb)
+        for idx in range(image_nb):
+            # take a index of true label
+            label_idx = true_label[idx][0]
 
-    def adam(self, result):
+            loss[idx] += np.log(softmax_prob[idx][label_idx])
+        return -np.sum(loss) / image_nb
+
+    def adam(self,
+             loss,
+             t,
+             learning_rate,
+             beta1=0.9,
+             beta2=0.999,
+             epsilon=1e-8):
         """
         Create the ADaM optimizer
         The ADaM is RMSprop + momentum
-        :param map:
+        :param loss:
+            result of loss function
+        :param betas:
+            betas coefitients for RMSprop and momentum
         :return:
         """
+        print(self.v['conv'])
+        # for weights
+        # self.vdw = beta1 * self.vdw + ((1 - beta1) * loss)
+        # self.sdw = beta2 * self.sdw + ((1 - beta2) * loss**2)
+        #
+        # v_corr = self.vdw / (1 - np.power(beta1, t))
+        # s_corr = self.sdw / (1 - np.power(beta2, t))
+        #
+        # self.dense_layers['weight'] -= (learning_rate * v_corr) / (np.sqrt(s_corr) + epsilon)
 
-        print(result)
-        # print(self.dense_layers[0]['bias'])
+        # for bias
 
-        pass
 
 if __name__ == '__main__':
 
     train_images = pd.read_csv('data/train_images.csv')
     test_images = pd.read_csv('data/test_images.csv')
 
-    train_labels = pd.read_csv('data/train_labels.csv')
-    test_labels = pd.read_csv('data/test_labels.csv')
+    train_labels = np.array(pd.read_csv('data/train_labels.csv'))
+    test_labels = np.array(pd.read_csv('data/test_labels.csv'))
 
     train_images, test_images = share_image(train_images, test_images)
 
     model = Conv()
 
     # for test
-    train_images = train_images[:100]
+    train_images = train_images[:5]
+    train_labels = train_labels[:5]
 
-    model.fit(train_images, 5, [5, 5], 1)
+    model.fit(train_images, train_labels, 5, [5, 5], 1)
     # model.CreateLayer2D(train_images, 10, [5,5], 1)
     # plt.imshow(test, cmap='Greys')
     #
