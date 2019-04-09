@@ -44,7 +44,6 @@ class Conv():
         self.conv_layers = {}
         self.dense_layers = {}
         # coefitients for ADAM
-        self.v = {}
         self.pool_size = None
 
     def predict(self, file_name=None):
@@ -69,19 +68,23 @@ class Conv():
 
         layer structure:
             layer(list of tuples)[
-                    {number: [[filters], [new map]]},
+                    {number: kernel:kernel},
+                    {bias: bias},
+                    {adam: adam coefitients}},
                 ]
         :return:
             new convolution map
         """
 
         # create layer
-        self.conv_layers[layer_id] = np.array([
-            # new random kernel
-            np.random.uniform(-0.5, 0.5, [kernel, kernel_size[0], kernel_size[1]]),
-            # for ADAM coefitients
-            np.zeros([kernel, kernel_size[0], kernel_size[1]], dtype='float32')
-        ])
+        self.conv_layers[layer_id] = {}
+        # init kernel
+        self.conv_layers[layer_id]['weights'] = np.random.uniform(-0.5, 0.5, [kernel, kernel_size[0], kernel_size[1]])
+        # init bias
+        self.conv_layers[layer_id]['bias'] = np.random.uniform(-0.5, 0.5, kernel)
+        # init adam coefitients
+        self.conv_layers[layer_id]['adam'] = np.zeros([kernel, kernel_size[0], kernel_size[1]], dtype='float32')
+
 
     def createDense(self, output_num, layer_id, input_num):
         """
@@ -127,8 +130,7 @@ class Conv():
             x = self.dropout(x, 0.2)
             res = self.softmax(x)
             loss = self.cross_entropy(res, labels)
-            print(loss)
-            # self.adam(loss, epoch, learning_rate)
+            self.adam(loss, epoch, learning_rate)
             break
         pass
 
@@ -144,14 +146,16 @@ class Conv():
         """
         nb_images = np.shape(images)[0]
         map_dim = np.shape(images)[1]
+        nb_featurs = np.shape(layer['bias'])[0]
 
         map = np.zeros([nb_images, map_dim, map_dim])
 
         # for each image
         for image_idx in range(nb_images):
             # for each filter in layer
-            for feature in layer[0]:
-                map[image_idx] += scipy.ndimage.convolve(images[image_idx], feature)
+            for feature_idx in range(nb_featurs):
+                map[image_idx] += scipy.ndimage.convolve(images[image_idx], layer['weights'][feature_idx])
+                map[image_idx] += layer['bias'][feature_idx]
         return map
 
     def maxPooling2D(self, pool_size, map):
@@ -274,6 +278,10 @@ class Conv():
             loss[idx] += np.log(softmax_prob[idx][label_idx])
         return -np.sum(loss) / image_nb
 
+    def get_error_from_layer(self, layer, loss):
+        # print(layer['weights'])
+        pass
+
     def adam(self,
              loss,
              t,
@@ -290,7 +298,13 @@ class Conv():
             betas coefitients for RMSprop and momentum
         :return:
         """
-        print(self.v['conv'])
+        print(loss)
+        self.get_error_from_layer(self.dense_layers[0], loss)
+        # full_connected_res =
+        # convolution_res =
+
+        # print(np.shape(self.dense_layers[0]['adam']))
+        # print(np.shape(self.conv_layers[0]['adam']))
         # for weights
         # self.vdw = beta1 * self.vdw + ((1 - beta1) * loss)
         # self.sdw = beta2 * self.sdw + ((1 - beta2) * loss**2)
