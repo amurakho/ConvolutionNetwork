@@ -282,6 +282,28 @@ class Conv():
         # print(layer['weights'])
         pass
 
+
+    def get_error_from_dense(self, layer, loss):
+        """
+        Get the error from dense layer to conv layers
+        1) take error * each weight
+        2) sum weights wits axes=0 for each block in flatten list
+        :param layer:
+            dense layer
+        :param loss:
+            error
+        :return:
+            errors array for each block
+        """
+        error_dim = np.shape(layer['weights'])[-1]
+
+        # wi * teta
+        weight_loss = layer['weights'] * loss
+
+        # sum(wi)
+        errors = weight_loss.sum(0)
+        return errors
+
     def adam(self,
              loss,
              t,
@@ -298,8 +320,8 @@ class Conv():
             betas coefitients for RMSprop and momentum
         :return:
         """
-        print(loss)
-        self.get_error_from_layer(self.dense_layers[0], loss)
+        dense_errors = self.get_error_from_dense(self.dense_layers[0], loss)
+        self.get_error_from_layer(self.dense_layers[0], dense_errors)
         # full_connected_res =
         # convolution_res =
 
@@ -330,8 +352,8 @@ if __name__ == '__main__':
     model = Conv()
 
     # for test
-    train_images = train_images[:5]
-    train_labels = train_labels[:5]
+    train_images = train_images[:2]
+    train_labels = train_labels[:2]
 
     model.fit(train_images, train_labels, 5, [5, 5], 1)
     # model.CreateLayer2D(train_images, 10, [5,5], 1)
