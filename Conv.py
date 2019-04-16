@@ -46,15 +46,29 @@ class Conv():
         # coefitients for ADAM
         self.pool_size = None
 
-    def predict(self, file_name=None):
+    def full_layers_working(self, data):
+        x = self.covolution(data, self.conv_layers[0])
+        x = self.relu(x)
+        x = self.maxPooling2D([2, 2], x)
+        x = self.covolution(x, self.conv_layers[1])
+        x = self.relu(x)
+        x = self.maxPooling2D([2, 2], x)
+        x = self.flatten(x)
+        x = self.dropout(x, 0.3)
+        x = self.dense(x, self.dense_layers[0])
+        x = self.relu(x)
+        x = self.dropout(x, 0.2)
+        res = self.softmax(x)
+        return res
+
+    def predict(self, data):
         """
         make a prediction of image
-        :param file_name:
-            name of file with weight
         :return:
             label
         """
-        pass
+        res = self.full_layers_working(data)
+        return np.argmax(res)
 
     def createLayer2D(self, kernel, kernel_size, layer_id):
         """
@@ -102,10 +116,14 @@ class Conv():
         # init bias
         self.dense_layers[layer_id]['bias'] = np.random.uniform(-0.5, 0.5, output_num)
         # init adam coefitients
-        self.dense_layers[layer_id]['vdw'] = np.zeros(input_num)
-        self.dense_layers[layer_id]['sdw'] = np.zeros(input_num)
+        self.dense_layers[layer_id]['vdw'] = np.zeros(output_num)
+        self.dense_layers[layer_id]['sdw'] = np.zeros(output_num)
+
+        # self.dense_layers[layer_id]['vdwb'] = np.zeros(output_num)
+        # self.dense_layers[layer_id]['sdwb'] = np.zeros(output_num)
 
         # self.dense_layers[layer_id]['adam'] = np.zeros([output_num, input_num], dtype='float32')
+
 
     def fit(self,
             data,
@@ -122,23 +140,12 @@ class Conv():
         ress = []
         # start trainig
         for epoch in range(epochs):
-            x = self.covolution(data, self.conv_layers[0])
-            x = self.relu(x)
-            x = self.maxPooling2D([2, 2], x)
-            x = self.covolution(x, self.conv_layers[1])
-            x = self.relu(x)
-            x = self.maxPooling2D([2, 2], x)
-            x = self.flatten(x)
-            x = self.dropout(x, 0.3)
-            x = self.dense(x, self.dense_layers[0])
-            x = self.relu(x)
-            x = self.dropout(x, 0.2)
-            res = self.softmax(x)
+            res = self.full_layers_working(data)
             loss = self.cross_entropy(res, labels)
+            # print(loss)
             # t must be > 0
             self.adam(loss, epoch+1, learning_rate)
-            break
-        pass
+
 
     def covolution(self, images, layer):
         """
@@ -277,13 +284,23 @@ class Conv():
 
     def cross_entropy(self, softmax_prob, true_label):
         image_nb = np.shape(softmax_prob)[0]
-        loss = np.zeros(image_nb)
+        loss = np.zeros_like(softmax_prob)
+        # print("****************")
         for idx in range(image_nb):
+            labels = np.zeros(10)
             # take a index of true label
             label_idx = true_label[idx][0]
+            labels[label_idx] = 1.
+            loss[idx] += (labels * -np.log(softmax_prob[idx] + 1e-8)) + (1 - labels) * np.log(1 - softmax_prob[idx] + 1e-8)
+            # loss[idx] += (label_idx * -np.log(softmax_prob[idx])) + (1 - label_idx) * np.log(1 - softmax_prob[idx])
 
-            loss[idx] += np.log(softmax_prob[idx][label_idx])
-        return -np.sum(loss) / image_nb
+            # print((label_idx * -np.log(softmax_prob[idx])) + (1 - label_idx) * np.log(1 - softmax_prob[idx]))
+        #     print(loss[idx])
+        #     print("predict->{} label->{}".format(np.argmax(softmax_prob[idx]), label_idx))
+        # print("****************")
+        # print(loss[0])
+        return loss.sum(0) / image_nb
+        # return np.sum(loss) / image_nb
 
     def get_error_from_layer(self, last_loss):
         # BIAS
@@ -294,24 +311,13 @@ class Conv():
 
         nb_features = np.shape(self.conv_layers[0]['weights'])[0]
         errors = np.zeros(np.shape(self.conv_layers[0]['weights']))
-        # reshape_loss = last_loss.reshape([7,7])
         # for each kernel
         for feature_idx in range(nb_features):
-            # print(reshape_loss)
-            # print(layer['weights'][feature_idx])
+
             rot_kernel = np.rot90(np.rot90(self.conv_layers[0]['weights'][feature_idx]))
-            # test = scipy.signal.convolve(reshape_loss, rot_kernel, mode='same')
-            # test = scipy.signal.convolve2d(np.rot90(np.rot90(layer['weights'][feature_idx])), reshape_loss, 'valid')
-            # print(test)
-            # print(errors[feature_idx])
-            # exit(1)
+
             errors += scipy.signal.convolve(rot_kernel, last_loss, mode='same')
 
-            # self.conv_layers[1]['adam'][feature_idx] += scipy.signal.convolve(rot_kernel, last_loss, mode='same')
-            # # copy error
-            # self.conv_layers[0]['adam'][feature_idx] += self.conv_layers[1]['adam'][feature_idx]
-        # print(layer['weights'])
-        # print(layer['weights'])
         return errors, errors
 
     def get_error_from_dense(self, layer, loss):
@@ -326,7 +332,6 @@ class Conv():
         :return:
             errors array for each block
         """
-        error_dim = np.shape(layer['weights'])[-1]
 
         # wi * teta
         weight_loss = layer['weights'] * loss
@@ -335,31 +340,44 @@ class Conv():
         w_errors = weight_loss.sum(0)
         return w_errors, b_errors
 
-    def update_weights(self,
+    def update_conv(self,
                        error,
                        layer,
                        beta1,
                        beta2,
                        t,
                        lr,
-                       epsilon,
-                       is_conv=True):
-        # ОСТАНОВИЛСЯ НА ТОМ ЧТО ДЕЛАЛ ПОДГОНКУ ДЛЯ ВЕСОВ В ПОЛНОСВЯЗНОМ СЛОЕ
-        # ДАЙ БОГ ТЕБЕ БРАТИШКА НЕ ЗАБЫТЬ НА ЧЕМ ТЫ ОСТАВНОВИЛСЯ, И КАК ВСЕ ЭТО ДЕЛАЕТСЯ
-        # ЗЕМЛЯ ТЕБЕ ПУХОМ
+                       epsilon):
+        """
+        :param error:
+            Error of convolution layer
+        :param layer:
+            layer wich will be update
+        :param beta1:
+            beta for vdw
+        :param beta2:
+            beta for sdw
+        :param t:
+            epoch
+        :param lr:
+            learning rate
+        :param epsilon:
+            epsilon]
 
 
-        if is_conv:
-            kernel_number = np.shape(layer['weights'])[0]
-        else:
-            kernel_number = 1
+        Update weights with
+        momentum
+            vdw(sdw) += beta * wi + ( 1 - beta) * error(^2)
+        RMSProp
+            v_corr(s_corr) += vdw(sdw) / (1 - beta^t)
+        ADAM
+            wi = (learning_rate * v_corr) / (sqrt(s_corr) + epsilon)
+        """
 
+        kernel_number = np.shape(layer['weights'])[0]
+        # for each kernel
         for kernel_idx in range(kernel_number):
 
-            print(np.shape(error))
-            print(np.shape(layer['weights']))
-            print(np.shape(layer['vdw']))
-            exit(1)
             layer['vdw'][kernel_idx] += beta1 * layer['vdw'][kernel_idx] + ((1 - beta1) * error[kernel_idx])
             layer['sdw'][kernel_idx] += beta2 * layer['sdw'][kernel_idx] + ((1 - beta2) * error[kernel_idx]**2)
 
@@ -368,12 +386,69 @@ class Conv():
 
             layer['weights'][kernel_idx] -= (lr * v_corr) / (np.sqrt(s_corr) + epsilon)
 
-            # print(weights[kernel_idx])
-            # print("*******************")
-            # print(error[kernel_idx])
-        # print(np.shape(error))
-        # print(np.shape(weights))
-        pass
+    def update_dense(self,
+                     w_error,
+                     b_error,
+                     layer,
+                     beta1,
+                     beta2,
+                     t,
+                     lr,
+                     epsilon):
+        """
+        :param error:
+            Error of convolution layer
+        :param layer:
+            layer wich will be update
+        :param beta1:
+            beta for vdw
+        :param beta2:
+            beta for sdw
+        :param t:
+            epoch
+        :param lr:
+            learning rate
+        :param epsilon:
+            epsilon]
+
+
+        Update weights with
+        momentum
+            vdw(sdw) += beta * wi + ( 1 - beta) * error(^2)
+        RMSProp
+            v_corr(s_corr) += vdw(sdw) / (1 - beta^t)
+        ADAM
+            wi = (learning_rate * v_corr) / (sqrt(s_corr) + epsilon)
+        """
+
+        layer['vdw'] += beta1 * layer['vdw'] + ((1 - beta1) * w_error)
+        layer['sdw'] += beta2 * layer['sdw'] + ((1 - beta2) * (w_error ** 2))
+
+        v_corr = layer['vdw'] / (1. - np.power(beta1, t))
+        s_corr = layer['sdw'] / (1. - np.power(beta2, t))
+
+
+        print(v_corr)
+        print(s_corr)
+        print((lr * v_corr) / (np.sqrt(s_corr) + epsilon))
+        exit(1)
+
+        neuron_nb = np.shape(layer['weights'])[0]
+        for neuron_idx in range(neuron_nb):
+            print(layer['weights'][neuron_idx])
+            exit(1)
+            layer['weights'][neuron_idx] -= (lr * v_corr[neuron_idx]) / (np.sqrt(s_corr[neuron_idx]) + epsilon)
+
+
+        ########################
+
+        # layer['vdwb'] = beta1 * layer['vdwb'] + ((1 - beta1) * b_error)
+        # layer['sdwb'] = beta2 * layer['sdwb'] + ((1 - beta2) * b_error ** 2)
+        #
+        # v_corr = layer['vdwb'] / (1. - np.power(beta1, t))
+        # s_corr = layer['sdwb'] / (1. - np.power(beta2, t))
+        #
+        # layer['bias'] -= (lr * v_corr) / (np.sqrt(s_corr) + epsilon)
 
     def adam(self,
              loss,
@@ -391,17 +466,21 @@ class Conv():
             betas coefitients for RMSprop and momentum
         :return:
         """
-        w_errors, b_errors = self.get_error_from_dense(self.dense_layers[0], loss)
-        w_errors = w_errors.reshape([7,7])
-        conv1_error, conv2_error = self.get_error_from_layer(w_errors)
+        # w_errors, b_errors = self.get_error_from_dense(self.dense_layers[0], loss)
+        # print(w_errors)
+        # exit(1)
+        # print(b_errors)
+        # exit(1)
+        # w_errors = w_errors.reshape([7,7])
+        # conv1_error, conv2_error = self.get_error_from_layer(w_errors.reshape([7,7]))
+        # conv1_error, conv2_error = self.get_error_from_layer(w_errors.reshape([7,7]))
 
-        # self.update_weights(conv1_error, self.conv_layers[0], beta1, beta2, t, learning_rate, epsilon)
-        # print("*******************")
-        # self.update_weights(conv2_error, self.conv_layers[1], beta1, beta2, t, learning_rate, epsilon)
-        # print("*******************")
-        self.update_weights(w_errors, self.dense_layers[0], beta1, beta2, t,
-                            learning_rate, epsilon, is_conv=False)
-        print('Ok')
+        # self.update_conv(conv1_error, self.conv_layers[0], beta1, beta2, t, learning_rate, epsilon)
+
+        # self.update_conv(conv2_error, self.conv_layers[1], beta1, beta2, t, learning_rate, epsilon)
+        b_errors = 0
+        self.update_dense(loss, b_errors, self.dense_layers[0], beta1, beta2, t,
+                            learning_rate, epsilon)
 
         # for bias
 
@@ -419,10 +498,13 @@ if __name__ == '__main__':
     model = Conv()
 
     # for test
-    train_images = train_images[:2]
-    train_labels = train_labels[:2]
+    train_images = train_images[:20]
+    train_labels = train_labels[:20]
 
-    model.fit(train_images, train_labels, 5, [5, 5], 1)
+    model.fit(train_images, train_labels, 5, [5, 5], 30)
+    # for image in test_images:
+
+    # model.predict()
     # model.CreateLayer2D(train_images, 10, [5,5], 1)
     # plt.imshow(test, cmap='Greys')
     #
